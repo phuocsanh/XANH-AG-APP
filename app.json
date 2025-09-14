@@ -7,13 +7,26 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Ứng dụng cần truy cập vị trí để hiển thị thời tiết tại vị trí hiện tại của bạn.",
+          "locationWhenInUsePermission": "Ứng dụng cần truy cập vị trí để hiển thị thời tiết tại vị trí hiện tại của bạn."
+        }
+      ]
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ứng dụng cần truy cập vị trí để hiển thị thời tiết tại vị trí hiện tại của bạn.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Ứng dụng cần truy cập vị trí để hiển thị thời tiết tại vị trí hiện tại của bạn."
+      }
     },
     "android": {
       "adaptiveIcon": {
