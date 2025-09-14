@@ -1,15 +1,15 @@
 import React, { useEffect } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Alert } from 'react-native';
+import { Alert } from 'react-native';
 import * as Location from 'expo-location';
-import WeatherScreen from './screens/WeatherScreen';
-import QueryProvider from './QueryProvider';
-import { setupTerminalLogger } from './utils/terminalLogger';
+import { Stack } from 'expo-router';
+import QueryProvider from '../src/QueryProvider';
+import { setupTerminalLogger } from '../src/utils/terminalLogger';
 
-// Setup terminal logger to show logs in Metro terminal
+// Setup terminal logger để hiển thị logs trong Metro terminal
 setupTerminalLogger();
 
-const App: React.FC = () => {
+// Root layout cho toàn bộ ứng dụng
+export default function RootLayout() {
   useEffect(() => {
     const requestLocationPermission = async () => {
       try {
@@ -47,19 +47,9 @@ const App: React.FC = () => {
 
   return (
     <QueryProvider>
-      <View style={styles.container}>
-        <StatusBar style="auto" />
-        <WeatherScreen />
-      </View>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
     </QueryProvider>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f8ff',
-  },
-});
-
-export default App;
+}

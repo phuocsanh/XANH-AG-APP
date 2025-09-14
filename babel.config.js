@@ -10,7 +10,9 @@ module.exports = function(api) {
         whitelist: null,
         safe: false,
         allowUndefined: true
-      }]
+      }],
+      // Plugin để xử lý import.meta cho web platform
+      '@babel/plugin-syntax-import-meta'
     ],
   };
 };
