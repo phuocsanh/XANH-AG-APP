@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -9,32 +9,46 @@ import {
   Alert
 } from 'react-native';
 import * as Speech from 'expo-speech';
-import { riceAnalysisService, RiceAnalysisResult } from '../../src/services/riceAnalysisService';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
+
+// Định nghĩa interface cho dữ liệu trả về từ API
+interface RiceAnalysisResult {
+  summary: string;
+  riceVarieties: Array<{
+    variety: string;
+    province: string;
+    price: string;
+  }>;
+  marketInsights: string[];
+  lastUpdated: string;
+  dataQuality: string;
+  sourceUrl: string;
+}
+
+// Hàm gọi API để lấy dữ liệu phân tích giá lúa gạo
+const fetchRiceAnalysis = async (): Promise<RiceAnalysisResult> => {
+  const response = await axios.get('http://localhost:3003/ai-analysis/rice-market');
+  return response.data;
+};
 
 // Tab thứ 2 - Phân tích giá lúa gạo với AI
 export default function Tab2Screen() {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<RiceAnalysisResult | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Tự động chạy phân tích khi component mount
-  useEffect(() => {
-    handleAnalyzeRicePrices();
-  }, []);
-
-  // Hàm phân tích giá lúa gạo
-  const handleAnalyzeRicePrices = async () => {
-    try {
-      setIsAnalyzing(true);
-      const result = await riceAnalysisService.analyzeRicePrices();
-      setAnalysisResult(result);
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể phân tích dữ liệu giá lúa gạo. Vui lòng thử lại.');
-      console.error('Lỗi phân tích:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  // Sử dụng TanStack Query để gọi API
+  const { 
+    data: analysisResult, 
+    isLoading: isAnalyzing, 
+    error, 
+    refetch: handleAnalyzeRicePrices 
+  } = useQuery({
+    queryKey: ['riceAnalysis'],
+    queryFn: fetchRiceAnalysis,
+    retry: 2, // Thử lại 2 lần nếu lỗi
+    staleTime: 5 * 60 * 1000, // Dữ liệu được coi là fresh trong 5 phút
+    gcTime: 10 * 60 * 1000, // Cache trong 10 phút
+  });
 
   // Hàm text-to-speech
   const handleTextToSpeech = async () => {
@@ -45,7 +59,12 @@ export default function Tab2Screen() {
 
     try {
       setIsSpeaking(true);
-      const speechText = riceAnalysisService.generateSpeechText(analysisResult);
+      // Tạo text để đọc từ dữ liệu phân tích
+      const speechText = `
+        Tóm tắt thị trường: ${analysisResult.summary}
+        
+        Thông tin quan trọng: ${analysisResult.marketInsights.join('. ')}
+      `;
       
       await Speech.speak(speechText, {
         language: 'vi-VN',
@@ -62,6 +81,17 @@ export default function Tab2Screen() {
       Alert.alert('Lỗi', 'Không thể sử dụng text-to-speech.');
     }
   };
+
+  // Hàm xử lý khi nhấn nút phân tích
+  const handleAnalyzeButtonPress = () => {
+    handleAnalyzeRicePrices();
+  };
+
+  // Hiển thị lỗi nếu có
+  if (error) {
+    Alert.alert('Lỗi', 'Không thể phân tích dữ liệu giá lúa gạo. Vui lòng thử lại.');
+    console.error('Lỗi phân tích:', error);
+  }
 
   // Hàm dừng text-to-speech
   const handleStopSpeech = () => {
@@ -81,29 +111,6 @@ export default function Tab2Screen() {
         <View style={styles.summaryContainer}>
           <Text style={styles.sectionTitle}>Tóm tắt thị trường:</Text>
           <Text style={styles.summaryText}>{analysisResult.summary}</Text>
-        </View>
-
-        {/* Thông tin giá */}
-        <View style={styles.priceContainer}>
-          <Text style={styles.sectionTitle}>Thông tin giá:</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Lúa tươi:</Text>
-            <Text style={styles.priceValue}>{analysisResult.priceData.freshRice}</Text>
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Gạo xuất khẩu:</Text>
-            <Text style={styles.priceValue}>{analysisResult.priceData.exportRice}</Text>
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Gạo trong nước:</Text>
-            <Text style={styles.priceValue}>{analysisResult.priceData.domesticRice}</Text>
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Xu hướng:</Text>
-            <Text style={[styles.priceValue, styles.trendText]}>
-              {analysisResult.priceData.trend}
-            </Text>
-          </View>
         </View>
 
         {/* Thông tin giống lúa theo tỉnh */}
@@ -144,7 +151,7 @@ export default function Tab2Screen() {
       {/* Nút phân tích */}
       <TouchableOpacity 
         style={[styles.analyzeButton, isAnalyzing && styles.buttonDisabled]}
-        onPress={handleAnalyzeRicePrices}
+        onPress={handleAnalyzeButtonPress}
         disabled={isAnalyzing}
       >
         {isAnalyzing ? (
@@ -260,38 +267,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2E7D32',
     lineHeight: 20,
-  },
-  priceContainer: {
-    marginBottom: 15,
-    padding: 10,
-    backgroundColor: '#fff3e0',
-    borderRadius: 8,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingVertical: 4,
-    flexWrap: 'wrap',
-  },
-  priceLabel: {
-    fontSize: 14,
-    color: '#E65100',
-    fontWeight: '500',
-    flex: 1,
-    marginRight: 8,
-  },
-  priceValue: {
-    fontSize: 14,
-    color: '#BF360C',
-    fontWeight: 'bold',
-    textAlign: 'right',
-    flexShrink: 0,
-    maxWidth: '60%',
-  },
-  trendText: {
-    textTransform: 'uppercase',
   },
   varietiesContainer: {
     marginBottom: 15,
