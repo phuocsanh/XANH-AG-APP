@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppState, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { onlineManager, focusManager } from '@tanstack/react-query';
+import { DevToolsBubble } from 'react-native-react-query-devtools';
+import * as Clipboard from 'expo-clipboard';
 
 // Tạo QueryClient với cấu hình tối ưu cho React Native
 const queryClient = new QueryClient({
@@ -41,9 +43,27 @@ const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
     return () => subscription?.remove();
   }, []);
 
+  // Hàm copy cho DevTools - hỗ trợ Expo
+  const onCopy = async (text: string): Promise<boolean> => {
+    try {
+      await Clipboard.setStringAsync(text);
+      return true;
+    } catch (error) {
+      console.warn('Failed to copy to clipboard:', error);
+      return false;
+    }
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
+      {/* DevTools chỉ hiển thị trong development mode */}
+      {__DEV__ && (
+        <DevToolsBubble 
+          queryClient={queryClient} 
+          onCopy={onCopy}
+        />
+      )}
     </QueryClientProvider>
   );
 };

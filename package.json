@@ -19,6 +19,7 @@
     "axios": "^1.11.0",
     "cheerio": "^1.1.0",
     "expo": "^54.0.7",
+    "expo-clipboard": "~8.0.7",
     "expo-linking": "^8.0.8",
     "expo-location": "~19.0.7",
     "expo-router": "~6.0.4",
@@ -29,9 +30,13 @@
     "react-native": "0.81.4",
     "react-native-dotenv": "^3.4.11",
     "react-native-logs": "^5.5.0",
+    "react-native-react-query-devtools": "^1.5.1",
     "react-native-safe-area-context": "^5.6.1",
     "react-native-screens": "^4.16.0",
+    "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.1",
+    "react-native-webview": "^13.16.0",
+    "react-native-youtube-iframe": "^2.4.1",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
