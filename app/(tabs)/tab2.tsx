@@ -30,7 +30,7 @@ interface RiceAnalysisResult {
   sourceUrl: string
 }
 
-// Định nghĩa// Interface cho YouTube video từ API
+// Interface cho YouTube video từ API
 interface YouTubeVideo {
   id: string
   title: string
@@ -40,7 +40,7 @@ interface YouTubeVideo {
     name: string
   }
   duration: string
-  isLive: boolean
+  isLive?: boolean
 }
 
 // Hàm gọi API để lấy dữ liệu phân tích giá lúa gạo
@@ -62,7 +62,7 @@ const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
       },
     }
   )
-  return response.data.videos // API trả về { videos: [...] }
+  return response.data // API trả về trực tiếp một mảng video
 }
 
 // Component hiển thị từng video YouTube với video nhúng trực tiếp

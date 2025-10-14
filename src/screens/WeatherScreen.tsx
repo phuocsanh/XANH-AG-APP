@@ -1,4 +1,4 @@
-import React, { useState, useEffect, JSX } from "react"
+import React, { useState, useEffect, JSX, useRef } from "react"
 import {
   View,
   Text,
@@ -20,16 +20,21 @@ import {
   useWeatherForecastByCoords,
 } from "../services/weatherService"
 import {
+  useClimateForecast,
+  useClimateYouTubeVideos,
+} from "../services/climateService"
+import {
   useAppSettings,
   useTemperatureSettings,
   useFavoriteCities,
   useSearchHistory,
 } from "../store"
 import { getCurrentLocationWithCity } from "../services/locationService"
+import YoutubePlayer from "react-native-youtube-iframe"
 
 const { width } = Dimensions.get("window")
 
-type TabType = "current" | "forecast" | "hourly"
+type TabType = "current" | "forecast" | "hourly" | "climate"
 
 interface ForecastItemData {
   dt: number
@@ -54,6 +59,8 @@ const WeatherScreen: React.FC = () => {
     lat: number
     lon: number
   } | null>(null)
+  const scrollViewRef = useRef<ScrollView>(null)
+  const tabRefs = useRef<Array<{ x: number; width: number }>>([])
 
   // Zustand stores
   const { theme } = useAppSettings()
@@ -96,6 +103,20 @@ const WeatherScreen: React.FC = () => {
     { enabled: !!currentCoords }
   )
 
+  // TanStack Query hooks for climate data
+  const {
+    data: climateForecastData,
+    isLoading: climateForecastLoading,
+    error: climateForecastError,
+  } = useClimateForecast()
+
+  const {
+    data: climateVideosData,
+    isLoading: climateVideosLoading,
+    error: climateVideosError,
+  } = useClimateYouTubeVideos()
+  console.log("🚀 ~ WeatherScreen ~ climateVideosData:", climateVideosData)
+
   const refreshMutation = useRefreshWeather()
 
   // Use coordinates data if available, otherwise use city data
@@ -109,6 +130,35 @@ const WeatherScreen: React.FC = () => {
     ? coordsWeatherError || coordsForecastError
     : weatherError || forecastError
   const [activeTab, setActiveTab] = useState<TabType>("current")
+
+  // Scroll to selected tab
+  const scrollToTab = (index: number) => {
+    if (scrollViewRef.current && tabRefs.current[index]) {
+      const { x, width } = tabRefs.current[index]
+      // @ts-ignore
+      scrollViewRef.current.scrollTo({
+        x: x - Dimensions.get("window").width / 2 + width / 2,
+        animated: true,
+      })
+    }
+  }
+
+  // Handle tab change with scroll
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab)
+    // Scroll to make the tab visible
+    const tabIndex =
+      {
+        current: 0,
+        hourly: 1,
+        forecast: 2,
+        climate: 3,
+      }[tab] || 0
+
+    setTimeout(() => {
+      scrollToTab(tabIndex)
+    }, 100)
+  }
 
   // Tự động lấy vị trí hiện tại khi khởi động ứng dụng
   useEffect(() => {
@@ -428,6 +478,162 @@ const WeatherScreen: React.FC = () => {
     )
   }
 
+  // Hàm lấy video ID từ URL YouTube
+  const getVideoId = (url: string): string => {
+    const videoIdMatch = url.match(
+      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+    )
+    return videoIdMatch ? videoIdMatch[1] : ""
+  }
+
+  // Component hiển thị dự báo khí hậu
+  const renderClimateForecast = (): React.ReactElement | null => {
+    if (climateForecastLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color='#4A90E2' />
+          <Text style={styles.loadingText}>Đang tải dữ liệu khí hậu...</Text>
+        </View>
+      )
+    }
+
+    if (climateForecastError) {
+      return (
+        <View style={styles.forecastCard}>
+          <Text style={styles.forecastTitleLarge}>Lỗi tải dữ liệu</Text>
+          <Text style={styles.description}>
+            Không thể tải dữ liệu dự báo khí hậu. Vui lòng thử lại sau.
+          </Text>
+        </View>
+      )
+    }
+
+    if (!climateForecastData) {
+      return (
+        <View style={styles.forecastCard}>
+          <Text style={styles.forecastTitleLarge}>Dữ liệu khí hậu</Text>
+          <Text style={styles.description}>
+            Dữ liệu dự báo khí hậu đang được cập nhật.
+          </Text>
+        </View>
+      )
+    }
+
+    return (
+      <View style={styles.forecastCard}>
+        <Text style={styles.forecastTitleLarge}>Dự báo khí hậu</Text>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.currentWeatherCard}>
+            {/* Climate Summary */}
+            <Text style={styles.description}>
+              {climateForecastData.summary}
+            </Text>
+
+            <View style={styles.insightsContainer}>
+              <Text style={styles.sectionTitle}>Thông tin thủy văn:</Text>
+              <Text style={styles.insightText}>
+                {climateForecastData.hydrologyInfo}
+              </Text>
+            </View>
+
+            <View style={styles.insightsContainer}>
+              <Text style={styles.sectionTitle}>Mực nước sông:</Text>
+              <Text style={styles.insightText}>
+                {climateForecastData.waterLevelInfo}
+              </Text>
+            </View>
+
+            <View style={styles.insightsContainer}>
+              <Text style={styles.sectionTitle}>Nguồn dữ liệu:</Text>
+              {climateForecastData.dataSources.map((source, index) => (
+                <Text key={index} style={styles.insightText}>
+                  • {source}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
+
+  // Component hiển thị video YouTube
+  const renderClimateVideos = (): React.ReactElement | null => {
+    if (climateVideosLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color='#4A90E2' />
+          <Text style={styles.loadingText}>Đang tải video...</Text>
+        </View>
+      )
+    }
+
+    if (climateVideosError) {
+      return (
+        <View style={styles.forecastCard}>
+          <Text style={styles.forecastTitleLarge}>Lỗi tải video</Text>
+          <Text style={styles.description}>
+            Không thể tải video YouTube. Vui lòng thử lại sau.
+          </Text>
+        </View>
+      )
+    }
+
+    if (!climateVideosData || climateVideosData.length === 0) {
+      return (
+        <View style={styles.forecastCard}>
+          <Text style={styles.forecastTitleLarge}>Video khí hậu</Text>
+          <Text style={styles.description}>
+            Không có video nào về khí hậu được tìm thấy.
+          </Text>
+        </View>
+      )
+    }
+
+    return (
+      <View style={styles.forecastCard}>
+        <Text style={styles.forecastTitleLarge}>Video dự báo thời tiết</Text>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {climateVideosData.map((video) => (
+            <View key={video.id} style={styles.videoItem}>
+              {/* Video YouTube nhúng trực tiếp */}
+              <View style={styles.videoPlayerContainer}>
+                <YoutubePlayer
+                  height={200}
+                  videoId={getVideoId(video.url)}
+                  onError={(e: any) => console.error("Lỗi tải video:", e)}
+                />
+              </View>
+
+              {/* Thông tin video */}
+              <View style={styles.videoInfo}>
+                <Text style={styles.videoTitle} numberOfLines={2}>
+                  {video.title}
+                </Text>
+                <Text style={styles.videoChannel} numberOfLines={1}>
+                  Kênh: {video.channel.name}
+                </Text>
+                <Text style={styles.videoDuration}>
+                  Thời lượng: {video.duration}
+                </Text>
+                {video.isLive && (
+                  <Text
+                    style={[
+                      styles.videoDate,
+                      { color: "#FF0000", fontWeight: "bold" },
+                    ]}
+                  >
+                    🔴 LIVE
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    )
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -470,45 +676,118 @@ const WeatherScreen: React.FC = () => {
         </View>
 
         <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "current" && styles.activeTab]}
-            onPress={() => setActiveTab("current")}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabScrollView}
+            ref={scrollViewRef}
+            onLayout={() => {
+              // Scroll to active tab on initial layout
+              const tabIndex =
+                {
+                  current: 0,
+                  hourly: 1,
+                  forecast: 2,
+                  climate: 3,
+                }[activeTab] || 0
+              setTimeout(() => {
+                scrollToTab(tabIndex)
+              }, 100)
+            }}
           >
-            <Text
+            <TouchableOpacity
               style={[
-                styles.tabText,
-                activeTab === "current" && styles.activeTabText,
+                styles.tab,
+                activeTab === "current" && styles.activeTab,
+                styles.tabMargin,
               ]}
+              onPress={() => handleTabChange("current")}
+              onLayout={(e) => {
+                tabRefs.current[0] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                }
+              }}
             >
-              Hiện tại
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "hourly" && styles.activeTab]}
-            onPress={() => setActiveTab("hourly")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "current" && styles.activeTabText,
+                ]}
+              >
+                Hiện tại
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.tabText,
-                activeTab === "hourly" && styles.activeTabText,
+                styles.tab,
+                activeTab === "hourly" && styles.activeTab,
+                styles.tabMargin,
               ]}
+              onPress={() => handleTabChange("hourly")}
+              onLayout={(e) => {
+                tabRefs.current[1] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                }
+              }}
             >
-              Theo giờ
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === "forecast" && styles.activeTab]}
-            onPress={() => setActiveTab("forecast")}
-          >
-            <Text
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "hourly" && styles.activeTabText,
+                ]}
+              >
+                Theo giờ
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.tabText,
-                activeTab === "forecast" && styles.activeTabText,
+                styles.tab,
+                activeTab === "forecast" && styles.activeTab,
+                styles.tabMargin,
               ]}
+              onPress={() => handleTabChange("forecast")}
+              onLayout={(e) => {
+                tabRefs.current[2] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                }
+              }}
             >
-              Dự báo
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "forecast" && styles.activeTabText,
+                ]}
+              >
+                Dự báo
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tab,
+                activeTab === "climate" && styles.activeTab,
+                styles.tabMargin,
+              ]}
+              onPress={() => handleTabChange("climate")}
+              onLayout={(e) => {
+                tabRefs.current[3] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                }
+              }}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "climate" && styles.activeTabText,
+                ]}
+              >
+                Khí hậu
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
 
@@ -521,8 +800,16 @@ const WeatherScreen: React.FC = () => {
         renderCurrentWeather()
       ) : activeTab === "hourly" ? (
         renderHourlyForecast()
-      ) : (
+      ) : activeTab === "forecast" ? (
         renderForecast()
+      ) : (
+        <ScrollView
+          style={styles.forecastCard}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderClimateVideos()}
+          {renderClimateForecast()}
+        </ScrollView>
       )}
     </View>
   )
@@ -599,10 +886,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   tab: {
-    flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 15,
     alignItems: "center",
     borderRadius: 20,
+    minWidth: 80,
   },
   activeTab: {
     backgroundColor: "white",
@@ -708,7 +996,7 @@ const styles = StyleSheet.create({
   },
   forecastCard: {
     flex: 1,
-    padding: 20,
+    padding: 5,
   },
   forecastTitle: {
     fontSize: 24,
@@ -1091,6 +1379,77 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#e74c3c",
     marginBottom: 4,
+  },
+  tabScrollView: {
+    flexDirection: "row",
+  },
+  tabMargin: {
+    marginRight: 10,
+  },
+
+  // Styles cho video YouTube
+  videoItem: {
+    backgroundColor: "#fff",
+    marginVertical: 8,
+    borderRadius: 10,
+    padding: 15,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+  },
+  videoInfo: {
+    flex: 1,
+    marginTop: 10,
+  },
+  videoTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1976D2",
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  videoChannel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  videoDuration: {
+    fontSize: 12,
+    color: "#FF6F00",
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  videoDate: {
+    fontSize: 12,
+    color: "#999",
+    fontStyle: "italic",
+  },
+  videoPlayerContainer: {
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+
+  // Styles cho khuyến nghị
+  insightsContainer: {
+    marginTop: 15,
+    padding: 10,
+    backgroundColor: "#f3e5f5",
+    borderRadius: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#1B5E20",
+    marginBottom: 8,
+  },
+  insightText: {
+    fontSize: 13,
+    color: "#4A148C",
+    marginBottom: 4,
+    lineHeight: 18,
   },
 })
 
