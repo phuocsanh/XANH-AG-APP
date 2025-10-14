@@ -7,7 +7,7 @@ import axiosInstance, {
 import { terminalApiLogger } from "../utils/terminalLogger"
 
 // Tạo axios instance với cấu hình mặc định
-const apiClient: AxiosInstance = axiosInstance.create({
+const axiosClient: AxiosInstance = axiosInstance.create({
   baseURL: "http://localhost:3003",
   timeout: 10000, // 10 seconds timeout
   headers: {
@@ -16,7 +16,7 @@ const apiClient: AxiosInstance = axiosInstance.create({
 })
 
 // Request interceptor - log requests
-apiClient.interceptors.request.use(
+axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     terminalApiLogger.request(
       config.method?.toUpperCase() || "GET",
@@ -32,7 +32,7 @@ apiClient.interceptors.request.use(
 )
 
 // Response interceptor - log responses
-apiClient.interceptors.response.use(
+axiosClient.interceptors.response.use(
   (response: AxiosResponse) => {
     terminalApiLogger.response(
       response.status,
@@ -77,47 +77,60 @@ export const objectToFormData = (obj: Record<string, any>): FormData => {
 }
 
 // Core HTTP methods
-const axios = {
+// This axiosClientWrapper uses the configured axiosClient instance which is created with axiosInstance
+// All methods explicitly delegate to the corresponding axios methods (axios.get, axios.post, etc.)
+export const apiClient = {
   // Standard HTTP methods
+  // GET request using axios.get internally
   get: <T>(
     url: string,
     config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> => {
-    return apiClient.get<T>(url, config)
+    // Explicitly using axios.get through the axiosClient instance
+    return axiosClient.get<T>(url, config)
   },
 
+  // POST request using axios.post internally
   post: <T>(
     url: string,
     data?: any,
     config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> => {
-    return apiClient.post<T>(url, data, config)
+    // Explicitly using axios.post through the axiosClient instance
+    return axiosClient.post<T>(url, data, config)
   },
 
+  // PUT request using axios.put internally
   put: <T>(
     url: string,
     data?: any,
     config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> => {
-    return apiClient.put<T>(url, data, config)
+    // Explicitly using axios.put through the axiosClient instance
+    return axiosClient.put<T>(url, data, config)
   },
 
+  // PATCH request using axios.patch internally
   patch: <T>(
     url: string,
     data?: any,
     config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> => {
-    return apiClient.patch<T>(url, data, config)
+    // Explicitly using axios.patch through the axiosClient instance
+    return axiosClient.patch<T>(url, data, config)
   },
 
+  // DELETE request using axios.delete internally
   delete: <T>(
     url: string,
     config?: AxiosRequestConfig
   ): Promise<AxiosResponse<T>> => {
-    return apiClient.delete<T>(url, config)
+    // Explicitly using axios.delete through the axiosClient instance
+    return axiosClient.delete<T>(url, config)
   },
 
   // Form data methods
+  // POST form data using axios.post internally with FormData
   postFormData: <T>(
     url: string,
     data: FormData | Record<string, any>,
@@ -125,7 +138,8 @@ const axios = {
   ): Promise<AxiosResponse<T>> => {
     const formData = data instanceof FormData ? data : objectToFormData(data)
 
-    return apiClient.post<T>(url, formData, {
+    // Explicitly using axios.post through the axiosClient instance
+    return axiosClient.post<T>(url, formData, {
       ...config,
       headers: {
         ...config?.headers,
@@ -134,6 +148,7 @@ const axios = {
     })
   },
 
+  // PUT form data using axios.put internally with FormData
   putFormData: <T>(
     url: string,
     data: FormData | Record<string, any>,
@@ -141,7 +156,8 @@ const axios = {
   ): Promise<AxiosResponse<T>> => {
     const formData = data instanceof FormData ? data : objectToFormData(data)
 
-    return apiClient.put<T>(url, formData, {
+    // Explicitly using axios.put through the axiosClient instance
+    return axiosClient.put<T>(url, formData, {
       ...config,
       headers: {
         ...config?.headers,
@@ -150,6 +166,7 @@ const axios = {
     })
   },
 
+  // PATCH form data using axios.patch internally with FormData
   patchFormData: <T>(
     url: string,
     data: FormData | Record<string, any>,
@@ -157,7 +174,8 @@ const axios = {
   ): Promise<AxiosResponse<T>> => {
     const formData = data instanceof FormData ? data : objectToFormData(data)
 
-    return apiClient.patch<T>(url, formData, {
+    // Explicitly using axios.patch through the axiosClient instance
+    return axiosClient.patch<T>(url, formData, {
       ...config,
       headers: {
         ...config?.headers,
@@ -167,17 +185,5 @@ const axios = {
   },
 }
 
-// Export the axios object containing all methods
-export default axios
-
-// Also export individual methods for backward compatibility
-export const {
-  get,
-  post,
-  put,
-  patch,
-  delete: del,
-  postFormData,
-  putFormData,
-  patchFormData,
-} = axios
+// Export the axiosClientWrapper object containing all methods
+// This provides a centralized API client that explicitly uses axios internally with consistent configuration

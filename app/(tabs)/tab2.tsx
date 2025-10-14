@@ -13,8 +13,11 @@ import {
 } from "react-native"
 import * as Speech from "expo-speech"
 import { useQuery } from "@tanstack/react-query"
-import axios from "axios"
+// Use the centralized API client which explicitly uses axios methods internally
+// This ensures consistent request handling, interceptors, and error logging
+// All methods (get, post, etc.) are wrappers that call the corresponding axios methods
 import YoutubePlayer from "react-native-youtube-iframe"
+import { apiClient } from "@/src/services/apiClient"
 
 // Định nghĩa interface cho dữ liệu trả về từ API
 interface RiceAnalysisResult {
@@ -45,22 +48,19 @@ interface YouTubeVideo {
 
 // Hàm gọi API để lấy dữ liệu phân tích giá lúa gạo
 const fetchRiceAnalysis = async (): Promise<RiceAnalysisResult> => {
-  const response = await axios.get(
-    "http://localhost:3003/ai-analysis/rice-market"
+  // Using the full namespace to make it explicit that we're using the apiClient
+  const response = await apiClient.get<RiceAnalysisResult>(
+    "/ai-analysis/rice-market"
   )
   return response.data
 }
 
 // Hàm gọi API để lấy YouTube videos
 const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
-  const response = await axios.get(
-    "http://localhost:3003/ai-analysis/youtube-videos",
-    {
-      params: {
-        query: "gia lua gao",
-        limit: 5,
-      },
-    }
+  // Using the full namespace to make it explicit that we're using the apiClient
+  // Following the memory requirement: no query parameters for YouTube videos endpoint
+  const response = await apiClient.get<YouTubeVideo[]>(
+    "/ai-analysis/youtube-videos"
   )
   return response.data // API trả về trực tiếp một mảng video
 }

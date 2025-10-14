@@ -1,5 +1,5 @@
 import { useQuery, UseQueryOptions } from "@tanstack/react-query"
-import axios from "./apiClient"
+import { apiClient } from "./apiClient"
 
 // Interface cho dữ liệu dự báo khí hậu
 export interface ClimateForecastData {
@@ -38,7 +38,7 @@ export interface YouTubeVideo {
 // API functions
 export const getClimateForecast = async (): Promise<ClimateForecastData> => {
   try {
-    const response = await axios.get<ClimateForecastData>(
+    const response = await apiClient.get<ClimateForecastData>(
       "/weather-forecast/climate-forecasting"
     )
     return response.data
@@ -50,7 +50,7 @@ export const getClimateForecast = async (): Promise<ClimateForecastData> => {
 
 export const getClimateYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
   try {
-    const response = await axios.get<YouTubeVideo[]>(
+    const response = await apiClient.get<YouTubeVideo[]>(
       "/weather-forecast/youtube-videos"
     )
     console.log("Actual YouTube API response:", response.data)
