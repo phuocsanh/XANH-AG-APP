@@ -17,7 +17,12 @@ import { useQuery } from "@tanstack/react-query"
 // This ensures consistent request handling, interceptors, and error logging
 // All methods (get, post, etc.) are wrappers that call the corresponding axios methods
 import YoutubePlayer from "react-native-youtube-iframe"
-import { apiClient } from "@/src/services/apiClient"
+import YouTubeVideoItem from "@/src/components/YouTubeVideoItem"
+import { extractVideos } from "@/src/utils/videoUtils"
+import {
+  useRiceAnalysis,
+  useRiceYouTubeVideos,
+} from "@/src/services/riceAnalysisService"
 
 // Định nghĩa interface cho dữ liệu trả về từ API
 interface RiceAnalysisResult {
@@ -42,96 +47,24 @@ interface YouTubeVideo {
   channel: {
     name: string
   }
+  description: string
   duration: string
+  uploadTime: string
+  views: string
   isLive?: boolean
-}
-
-// Hàm gọi API để lấy dữ liệu phân tích giá lúa gạo
-const fetchRiceAnalysis = async (): Promise<RiceAnalysisResult> => {
-  // Using the full namespace to make it explicit that we're using the apiClient
-  const response = await apiClient.get<RiceAnalysisResult>(
-    "/ai-analysis/rice-market"
-  )
-  return response.data
-}
-
-// Hàm gọi API để lấy YouTube videos
-const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
-  // Using the full namespace to make it explicit that we're using the apiClient
-  // Following the memory requirement: no query parameters for YouTube videos endpoint
-  const response = await apiClient.get<YouTubeVideo[]>(
-    "/ai-analysis/youtube-videos"
-  )
-  return response.data // API trả về trực tiếp một mảng video
-}
-
-// Component hiển thị từng video YouTube với video nhúng trực tiếp
-const YouTubeVideoItem = ({ video }: { video: YouTubeVideo }) => {
-  // Hàm lấy video ID từ URL YouTube
-  const getVideoId = (url: string): string => {
-    const videoIdMatch = url.match(
-      /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-    )
-    return videoIdMatch ? videoIdMatch[1] : ""
-  }
-
-  // Hàm mở video YouTube trong trình duyệt
-  const openInYouTube = async () => {
-    try {
-      const supported = await Linking.canOpenURL(video.url)
-      if (supported) {
-        await Linking.openURL(video.url)
-      } else {
-        Alert.alert("Lỗi", "Không thể mở video này")
-      }
-    } catch (error) {
-      Alert.alert("Lỗi", "Có lỗi xảy ra khi mở video")
-    }
-  }
-
-  return (
-    <View style={styles.videoItem}>
-      {/* Thông tin video */}
-      <View style={styles.videoInfo}>
-        <Text style={styles.videoTitle} numberOfLines={2}>
-          {video.title}
-        </Text>
-        <Text style={styles.videoChannel} numberOfLines={1}>
-          Kênh: {video.channel.name}
-        </Text>
-        <Text style={styles.videoDuration}>Thời lượng: {video.duration}</Text>
-        {video.isLive && (
-          <Text
-            style={[styles.videoDate, { color: "#FF0000", fontWeight: "bold" }]}
-          >
-            🔴 LIVE
-          </Text>
-        )}
-      </View>
-
-      {/* Video YouTube nhúng trực tiếp */}
-      <View style={styles.videoPlayerContainer}>
-        <YoutubePlayer
-          height={200}
-          videoId={getVideoId(video.url)}
-          onError={(e: any) => console.error("Lỗi tải video:", e)}
-        />
-      </View>
-
-      {/* Nút mở trong YouTube (tùy chọn) */}
-      <TouchableOpacity
-        style={styles.openYouTubeButton}
-        onPress={openInYouTube}
-      >
-        <Text style={styles.openYouTubeButtonText}>Mở trong YouTube</Text>
-      </TouchableOpacity>
-    </View>
-  )
 }
 
 // Tab thứ 2 - Phân tích giá lúa gạo với AI và YouTube videos
 export default function Tab2Screen() {
   const [isSpeaking, setIsSpeaking] = useState(false)
+
+  // State để theo dõi số lượng video bị ẩn
+  const [hiddenVideos, setHiddenVideos] = React.useState<Set<string>>(new Set())
+
+  // Hàm xử lý khi video bị ẩn
+  const handleVideoHidden = React.useCallback((videoId: string) => {
+    setHiddenVideos((prev) => new Set(prev).add(videoId))
+  }, [])
 
   // Sử dụng TanStack Query để tự động gọi API phân tích giá lúa gạo khi vào tab
   const {
@@ -139,9 +72,7 @@ export default function Tab2Screen() {
     isLoading: isAnalyzing,
     error,
     refetch: handleAnalyzeRicePrices,
-  } = useQuery({
-    queryKey: ["riceAnalysis"],
-    queryFn: fetchRiceAnalysis,
+  } = useRiceAnalysis({
     retry: 2, // Thử lại 2 lần nếu lỗi
     staleTime: 5 * 60 * 1000, // Dữ liệu được coi là fresh trong 5 phút
     gcTime: 10 * 60 * 1000, // Cache trong 10 phút
@@ -149,27 +80,27 @@ export default function Tab2Screen() {
 
   // Sử dụng TanStack Query để tự động gọi API YouTube videos khi vào tab
   const {
-    data: youtubeVideos,
+    data: youtubeVideosData,
     isLoading: isLoadingVideos,
     error: videosError,
     refetch: handleLoadVideos,
-  } = useQuery({
-    queryKey: ["youtubeVideos"],
-    queryFn: fetchYouTubeVideos,
+  } = useRiceYouTubeVideos({
     retry: 2,
     staleTime: 10 * 60 * 1000, // Cache 10 phút
     gcTime: 15 * 60 * 1000,
   })
 
+  // Extract videos array from the response
+
   // Debug log khi có dữ liệu
   React.useEffect(() => {
-    if (youtubeVideos) {
-      console.log("YouTube Videos loaded:", youtubeVideos)
+    if (youtubeVideosData) {
+      console.log("YouTube Videos loaded:", extractVideos(youtubeVideosData))
     }
     if (videosError) {
       console.log("YouTube Videos error:", videosError)
     }
-  }, [youtubeVideos, videosError])
+  }, [youtubeVideosData, videosError])
 
   // Hàm text-to-speech
   const handleTextToSpeech = async () => {
@@ -307,21 +238,34 @@ export default function Tab2Screen() {
           </Text>
         )}
 
-        {youtubeVideos && youtubeVideos.length > 0 && (
-          <FlatList
-            data={youtubeVideos}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <YouTubeVideoItem video={item} />}
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+        {youtubeVideosData &&
+          (() => {
+            const videos = extractVideos(youtubeVideosData)
+            // Lọc ra các video không bị ẩn
+            const visibleVideos = videos.filter(
+              (video) => !hiddenVideos.has(video.id)
+            )
 
-        {youtubeVideos && youtubeVideos.length === 0 && !isLoadingVideos && (
-          <Text style={styles.summaryText}>
-            Không tìm thấy video nào về chủ đề này.
-          </Text>
-        )}
+            return (
+              <>
+                {visibleVideos.length === 0 && !isLoadingVideos ? (
+                  <Text style={styles.summaryText}>
+                    Không tìm thấy video nào về chủ đề này.
+                  </Text>
+                ) : (
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    {visibleVideos.map((video) => (
+                      <YouTubeVideoItem
+                        key={video.id}
+                        video={video}
+                        onError={() => handleVideoHidden(video.id)}
+                      />
+                    ))}
+                  </ScrollView>
+                )}
+              </>
+            )
+          })()}
       </View>
       {/* Nút phân tích */}
       <TouchableOpacity
@@ -552,6 +496,7 @@ const styles = StyleSheet.create({
   },
   videoInfo: {
     flex: 1,
+    marginTop: 10,
   },
   videoTitle: {
     fontSize: 16,

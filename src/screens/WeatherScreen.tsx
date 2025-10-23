@@ -12,6 +12,8 @@ import {
   Dimensions,
 } from "react-native"
 import WeatherItem from "../components/WeatherItem"
+import YouTubeVideoItem, { YouTubeVideo } from "../components/YouTubeVideoItem"
+import { extractVideos } from "../utils/videoUtils"
 import {
   useCurrentWeather,
   useWeatherForecast,
@@ -52,7 +54,7 @@ interface ForecastItemData {
   pop?: number // Probability of precipitation (0-1)
 }
 
-const WeatherScreen: React.FC = () => {
+export default function WeatherScreen() {
   const [city, setCity] = useState<string>("Ho Chi Minh City")
   const [searchCity, setSearchCity] = useState<string>("Ho Chi Minh City")
   const [currentCoords, setCurrentCoords] = useState<{
@@ -557,6 +559,16 @@ const WeatherScreen: React.FC = () => {
     )
   }
 
+  // State để theo dõi số lượng video bị ẩn trong tab khí hậu
+  const [hiddenClimateVideos, setHiddenClimateVideos] = React.useState<
+    Set<string>
+  >(new Set())
+
+  // Hàm xử lý khi video khí hậu bị ẩn
+  const handleClimateVideoHidden = React.useCallback((videoId: string) => {
+    setHiddenClimateVideos((prev) => new Set(prev).add(videoId))
+  }, [])
+
   // Component hiển thị video YouTube
   const renderClimateVideos = (): React.ReactElement | null => {
     if (climateVideosLoading) {
@@ -579,7 +591,10 @@ const WeatherScreen: React.FC = () => {
       )
     }
 
-    if (!climateVideosData || climateVideosData.length === 0) {
+    // Sử dụng utility function để trích xuất video
+    const videos = extractVideos(climateVideosData)
+
+    if (!videos || videos.length === 0) {
       return (
         <View style={styles.forecastCard}>
           <Text style={styles.forecastTitleLarge}>Video khí hậu</Text>
@@ -590,46 +605,29 @@ const WeatherScreen: React.FC = () => {
       )
     }
 
+    // Lọc ra các video không bị ẩn
+    const visibleVideos = videos.filter(
+      (video) => !hiddenClimateVideos.has(video.id)
+    )
+
     return (
       <View style={styles.forecastCard}>
         <Text style={styles.forecastTitleLarge}>Video dự báo thời tiết</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {climateVideosData.map((video) => (
-            <View key={video.id} style={styles.videoItem}>
-              {/* Video YouTube nhúng trực tiếp */}
-              <View style={styles.videoPlayerContainer}>
-                <YoutubePlayer
-                  height={200}
-                  videoId={getVideoId(video.url)}
-                  onError={(e: any) => console.error("Lỗi tải video:", e)}
-                />
-              </View>
-
-              {/* Thông tin video */}
-              <View style={styles.videoInfo}>
-                <Text style={styles.videoTitle} numberOfLines={2}>
-                  {video.title}
-                </Text>
-                <Text style={styles.videoChannel} numberOfLines={1}>
-                  Kênh: {video.channel.name}
-                </Text>
-                <Text style={styles.videoDuration}>
-                  Thời lượng: {video.duration}
-                </Text>
-                {video.isLive && (
-                  <Text
-                    style={[
-                      styles.videoDate,
-                      { color: "#FF0000", fontWeight: "bold" },
-                    ]}
-                  >
-                    🔴 LIVE
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        {visibleVideos.length === 0 ? (
+          <Text style={styles.description}>
+            Không có video nào có thể hiển thị.
+          </Text>
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {visibleVideos.map((video) => (
+              <YouTubeVideoItem
+                key={video.id}
+                video={video}
+                onError={() => handleClimateVideoHidden(video.id)}
+              />
+            ))}
+          </ScrollView>
+        )}
       </View>
     )
   }
@@ -1452,5 +1450,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 })
-
-export default WeatherScreen
